@@ -1,0 +1,8 @@
+area,key_finding,business_insight
+Data Quality,Missingness is limited to four sensor variables.,Use sensor-specific missing-value handling and continuous data-quality monitoring.
+Temporal Pattern,Energy demand changes strongly by hour of day.,Retain time-of-day and calendar context in energy forecasting.
+Site Behavior,SITE_02 has the highest average energy reading; SITE_03 the lowest.,Compare sites together with building and operating conditions.
+Asset Type,Asset types operate in different physical regimes.,Use asset-type-specific health baselines instead of one global threshold.
+Failure Signals,"Fault readings show higher temperature, vibration and power than normal readings.",Use vibration and other changing sensor behavior as candidate maintenance signals.
+Pre-Fault Behavior,Vibration shows the largest mean change within 24 hours before recorded faults.,Use recent sensor behavior to support early-warning maintenance models.
+Energy Drivers,Occupancy and temperature show the strongest positive numeric associations with energy.,"Use occupancy, temperature, operating mode, asset type, building and time in energy baselines."

@@ -1,8 +1,4 @@
-"""GraphQL schema for the Nectar asset-connectivity bonus.
-
-The schema exposes the four connectivity queries required by the
-Nectar challenge and uses the same saved Task 5 graph/data as Flask.
-"""
+"""GraphQL schema for Nectar asset connectivity."""
 
 from graphql import (
     GraphQLArgument,
@@ -15,6 +11,10 @@ from graphql import (
     GraphQLString,
 )
 
+
+# ------------------------------------------------------------
+# GraphQL Types
+# ------------------------------------------------------------
 
 AssetConnectionType = GraphQLObjectType(
     name="AssetConnection",
@@ -50,8 +50,21 @@ AssetType = GraphQLObjectType(
 )
 
 
+# ------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------
+
+def _clean(value):
+    """Normalize IDs/names for comparison."""
+    if value is None:
+        return ""
+
+    return str(value).strip().lower()
+
+
 def _metadata_asset_rows(metadata):
     """Convert metadata rows to GraphQL-safe dictionaries."""
+
     records = []
 
     for row in metadata.to_dict("records"):
@@ -59,27 +72,27 @@ def _metadata_asset_rows(metadata):
             {
                 "asset_id": (
                     None
-                    if row.get("asset_id") is None
+                    if pd_is_null(row.get("asset_id"))
                     else str(row.get("asset_id"))
                 ),
                 "asset_name": (
                     None
-                    if row.get("asset_name") is None
+                    if pd_is_null(row.get("asset_name"))
                     else str(row.get("asset_name"))
                 ),
                 "asset_type": (
                     None
-                    if row.get("asset_type") is None
+                    if pd_is_null(row.get("asset_type"))
                     else str(row.get("asset_type"))
                 ),
                 "site_id": (
                     None
-                    if row.get("site_id") is None
+                    if pd_is_null(row.get("site_id"))
                     else str(row.get("site_id"))
                 ),
                 "building_id": (
                     None
-                    if row.get("building_id") is None
+                    if pd_is_null(row.get("building_id"))
                     else str(row.get("building_id"))
                 ),
             }
@@ -88,8 +101,15 @@ def _metadata_asset_rows(metadata):
     return records
 
 
+def pd_is_null(value):
+    """Small helper without requiring pandas import here."""
+    try:
+        return value != value
+    except Exception:
+        return value is None
+
+
 def _connection_rows(rows):
-    """Convert graph-service output to GraphQL-safe dictionaries."""
     result = []
 
     for row in rows:
@@ -122,7 +142,6 @@ def _connection_rows(rows):
 
 
 def _downstream_rows(rows):
-    """Convert downstream output to GraphQL-safe dictionaries."""
     result = []
 
     for row in rows:
@@ -154,24 +173,55 @@ def _downstream_rows(rows):
     return result
 
 
-def create_schema(graph, metadata):
-    """Create GraphQL schema around the existing Task 5 graph."""
+# ------------------------------------------------------------
+# Schema
+# ------------------------------------------------------------
 
-    def resolve_connected_assets(_root, info, assetName=None):
+def create_schema(graph, metadata):
+    """Create GraphQL schema around the Task 5 graph."""
+
+    def find_asset_id(asset_value):
+        """
+        Resolve either an asset name or asset ID
+        to the actual asset ID used by the graph.
+        """
+
+        if not asset_value:
+            return None
+
+        value = _clean(asset_value)
+
+        # First try asset_name
+        for _, row in metadata.iterrows():
+
+            if _clean(row.get("asset_name")) == value:
+                return str(row["asset_id"]).strip()
+
+        # Then allow asset_id as fallback
+        for _, row in metadata.iterrows():
+
+            if _clean(row.get("asset_id")) == value:
+                return str(row["asset_id"]).strip()
+
+        return None
+
+
+    # --------------------------------------------------------
+    # Connected Assets
+    # --------------------------------------------------------
+
+    def resolve_connected_assets(
+        _root,
+        info,
+        assetName=None,
+    ):
+
         services = info.context["services"]
 
-        if not assetName:
+        asset_id = find_asset_id(assetName)
+
+        if asset_id is None:
             return []
-
-        asset_df = metadata[
-            metadata["asset_name"].astype(str)
-            == str(assetName)
-        ]
-
-        if asset_df.empty:
-            return []
-
-        asset_id = asset_df.iloc[0]["asset_id"]
 
         rows = services["connected_assets"](
             graph,
@@ -180,21 +230,23 @@ def create_schema(graph, metadata):
 
         return _connection_rows(rows)
 
-    def resolve_downstream_assets(_root, info, assetName=None):
+
+    # --------------------------------------------------------
+    # Downstream Assets
+    # --------------------------------------------------------
+
+    def resolve_downstream_assets(
+        _root,
+        info,
+        assetName=None,
+    ):
+
         services = info.context["services"]
 
-        if not assetName:
+        asset_id = find_asset_id(assetName)
+
+        if asset_id is None:
             return []
-
-        asset_df = metadata[
-            metadata["asset_name"].astype(str)
-            == str(assetName)
-        ]
-
-        if asset_df.empty:
-            return []
-
-        asset_id = asset_df.iloc[0]["asset_id"]
 
         rows = services["downstream_assets"](
             graph,
@@ -203,7 +255,17 @@ def create_schema(graph, metadata):
 
         return _downstream_rows(rows)
 
-    def resolve_assets_under_site(_root, info, siteId=None):
+
+    # --------------------------------------------------------
+    # Assets Under Site
+    # --------------------------------------------------------
+
+    def resolve_assets_under_site(
+        _root,
+        info,
+        siteId=None,
+    ):
+
         services = info.context["services"]
 
         if not siteId:
@@ -216,7 +278,16 @@ def create_schema(graph, metadata):
 
         return _metadata_asset_rows(result)
 
-    def resolve_isolated_assets(_root, info):
+
+    # --------------------------------------------------------
+    # Isolated Assets
+    # --------------------------------------------------------
+
+    def resolve_isolated_assets(
+        _root,
+        info,
+    ):
+
         services = info.context["services"]
 
         result = services["isolated_assets"](
@@ -226,41 +297,68 @@ def create_schema(graph, metadata):
 
         return _metadata_asset_rows(result)
 
+
+    # --------------------------------------------------------
+    # Query
+    # --------------------------------------------------------
+
     QueryType = GraphQLObjectType(
         name="Query",
+
         fields={
+
             "connectedAssets": GraphQLField(
-                GraphQLList(AssetConnectionType),
+                GraphQLList(
+                    AssetConnectionType
+                ),
+
                 args={
                     "assetName": GraphQLArgument(
                         GraphQLString
                     )
                 },
+
                 resolve=resolve_connected_assets,
             ),
+
             "downstreamAssets": GraphQLField(
-                GraphQLList(DownstreamAssetType),
+                GraphQLList(
+                    DownstreamAssetType
+                ),
+
                 args={
                     "assetName": GraphQLArgument(
                         GraphQLString
                     )
                 },
+
                 resolve=resolve_downstream_assets,
             ),
+
             "assetsUnderSite": GraphQLField(
-                GraphQLList(AssetType),
+                GraphQLList(
+                    AssetType
+                ),
+
                 args={
                     "siteId": GraphQLArgument(
                         GraphQLString
                     )
                 },
+
                 resolve=resolve_assets_under_site,
             ),
+
             "isolatedAssets": GraphQLField(
-                GraphQLList(AssetType),
+                GraphQLList(
+                    AssetType
+                ),
+
                 resolve=resolve_isolated_assets,
             ),
         },
     )
 
-    return GraphQLSchema(query=QueryType)
+    return GraphQLSchema(
+        query=QueryType
+    )

@@ -1,8 +1,8 @@
-"""Task 2 inference using the saved predictive-maintenance model.
+"""Predictive-maintenance inference service.
 
-The dashboard loads the complete sklearn Pipeline saved by the notebook.
-Feature lists are read from the saved pipeline itself, so inference does
-not depend on a manually maintained model_config.json feature list.
+The service reproduces the feature engineering used during Task 2 and
+loads the complete saved sklearn Pipeline.  The saved pipeline is the
+source of truth for preprocessing and model features.
 """
 
 from pathlib import Path
@@ -22,7 +22,7 @@ SENSOR_COLS = [
 ]
 
 ROLLING_SPECS = {
-    "vibration": [4, 24, 48],
+    "vibration": [4, 24, 48],          # 1h, 6h, 12h
     "power_consumption": [4, 24, 48],
     "temperature": [4, 24],
     "pressure": [4, 24],
@@ -44,20 +44,17 @@ def load_model(model_path):
 
 
 def load_model_config(config_path):
-    """Load the saved model configuration."""
+    """Load saved model configuration."""
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def _get_pipeline_feature_lists(model):
-    """
-    Extract the exact raw input feature columns from the saved
-    ColumnTransformer inside the sklearn Pipeline.
-    """
+    """Read the exact raw feature columns from the saved pipeline."""
+
     if not hasattr(model, "named_steps"):
         raise ValueError(
-            "Saved predictive-maintenance model is not the expected "
-            "sklearn Pipeline."
+            "Saved model is not the expected sklearn Pipeline."
         )
 
     preprocessor = model.named_steps.get("preprocessor")
@@ -86,12 +83,12 @@ def _get_pipeline_feature_lists(model):
 
 
 def load_model_bundle(model_dir):
-    """
-    Load the saved model and configuration.
+    """Load model + configuration.
 
-    If model_config.json does not contain feature lists, they are
-    extracted directly from the saved preprocessing pipeline.
+    Feature lists are always obtained from the saved Pipeline so the API
+    cannot silently drift from the training preprocessing.
     """
+
     model_dir = Path(model_dir)
 
     model = load_model(
@@ -109,15 +106,13 @@ def load_model_bundle(model_dir):
         _get_pipeline_feature_lists(model)
     )
 
-    # The saved pipeline is the source of truth for feature columns.
     config["numeric_features"] = numeric_features
     config["categorical_features"] = categorical_features
-
-    if "threshold" not in config:
-        config["threshold"] = DEFAULT_THRESHOLD
-
-    if "model_name" not in config:
-        config["model_name"] = "Saved Predictive Maintenance Model"
+    config.setdefault("threshold", DEFAULT_THRESHOLD)
+    config.setdefault(
+        "model_name",
+        "Saved Predictive Maintenance Model",
+    )
 
     return model, config
 
@@ -127,32 +122,34 @@ def _add_time_features(df):
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df["hour"] = df["timestamp"].dt.hour
     df["day_of_week"] = df["timestamp"].dt.dayofweek
-    df["is_weekend"] = (
-        df["day_of_week"] >= 5
-    ).astype(int)
+    df["is_weekend"] = (df["day_of_week"] >= 5).astype(int)
     return df
 
 
 def _add_historical_features(df):
-    """Reproduce the leakage-safe notebook features."""
+    """Reproduce the leakage-safe notebook feature engineering."""
+
     df = df.copy()
+
+    df["asset_id"] = df["asset_id"].astype(str)
+
     df = df.sort_values(
         ["asset_id", "timestamp"]
     ).reset_index(drop=True)
 
     for col, windows in ROLLING_SPECS.items():
+
         shifted = df.groupby("asset_id")[col].shift(1)
 
         for window in windows:
+
             suffix = {
                 4: "1h",
                 24: "6h",
                 48: "12h",
             }[window]
 
-            grouped = shifted.groupby(
-                df["asset_id"]
-            )
+            grouped = shifted.groupby(df["asset_id"])
 
             df[f"{col}_mean_{suffix}"] = (
                 grouped.transform(
@@ -177,6 +174,7 @@ def _add_historical_features(df):
                 )
 
     for col in CHANGE_COLS:
+
         df[f"{col}_change_1h"] = (
             df[col]
             - df.groupby("asset_id")[col].shift(4)
@@ -197,13 +195,28 @@ def _prepare_features(
     numeric_features,
     categorical_features,
 ):
+    """Build exactly the features expected by the saved model."""
+
     history = history.copy()
+
+    history["asset_id"] = (
+        history["asset_id"].astype(str).str.strip()
+    )
+    asset_id = str(asset_id).strip()
+
     history["timestamp"] = pd.to_datetime(
         history["timestamp"]
     )
 
-    asset_metadata = metadata[
-        metadata["asset_id"] == asset_id
+    asset_metadata = metadata.copy()
+    asset_metadata["asset_id"] = (
+        asset_metadata["asset_id"]
+        .astype(str)
+        .str.strip()
+    )
+
+    asset_metadata = asset_metadata[
+        asset_metadata["asset_id"] == asset_id
     ].copy()
 
     if asset_metadata.empty:
@@ -211,19 +224,34 @@ def _prepare_features(
             f"Unknown asset_id: {asset_id}"
         )
 
-    history = history.merge(
-        asset_metadata[
-            [
-                "asset_id",
+    metadata_columns = [
+        "asset_id",
+        "asset_type",
+        "manufacturer",
+        "installation_date",
+        "capacity",
+        "parent_asset_id",
+    ]
+
+    history = history.drop(
+        columns=[
+            c for c in [
                 "asset_type",
                 "manufacturer",
                 "installation_date",
                 "capacity",
                 "parent_asset_id",
             ]
+            if c in history.columns
         ],
+        errors="ignore",
+    )
+
+    history = history.merge(
+        asset_metadata[metadata_columns],
         on="asset_id",
         how="left",
+        validate="many_to_one",
     )
 
     history["installation_date"] = pd.to_datetime(
@@ -284,10 +312,13 @@ def predict_failure(
     numeric_features=None,
     categorical_features=None,
 ):
-    """Generate a 24-hour failure-risk prediction."""
+    """Generate a 24-hour-ahead failure-risk prediction.
 
-    # If the caller does not pass feature lists, read them from
-    # the saved pipeline itself.
+    `telemetry_history` must contain observations before the current
+    observation. The current observation is appended and is the row
+    passed to the model.
+    """
+
     if (
         numeric_features is None
         or categorical_features is None
@@ -297,12 +328,51 @@ def predict_failure(
             categorical_features,
         ) = _get_pipeline_feature_lists(model)
 
+    asset_id = str(asset_id).strip()
+
+    # Normalize the incoming API observation before concatenating
+    # it with the pandas telemetry history. JSON sends timestamps
+    # as strings, while the loaded telemetry may contain pandas
+    # Timestamp objects. Mixing those types causes:
+    # TypeError: '<' not supported between instances of
+    # 'str' and 'Timestamp'
     current = pd.DataFrame([current_telemetry])
     current["asset_id"] = asset_id
 
-    history = telemetry_history[
-        telemetry_history["asset_id"] == asset_id
+    if "timestamp" not in current.columns:
+        raise ValueError(
+            "current_telemetry must contain a timestamp."
+        )
+
+    current["timestamp"] = pd.to_datetime(
+        current["timestamp"],
+        errors="coerce",
+    )
+
+    if current["timestamp"].isna().any():
+        raise ValueError(
+            "current_telemetry contains an invalid timestamp."
+        )
+
+    history = telemetry_history.copy()
+
+    history["asset_id"] = (
+        history["asset_id"].astype(str).str.strip()
+    )
+
+    history = history[
+        history["asset_id"] == asset_id
     ].copy()
+
+    # Always use one datetime type before concat/sort.
+    history["timestamp"] = pd.to_datetime(
+        history["timestamp"],
+        errors="coerce",
+    )
+
+    history = history.dropna(
+        subset=["timestamp"]
+    )
 
     history = pd.concat(
         [history, current],
@@ -315,7 +385,10 @@ def predict_failure(
             subset=["timestamp", "asset_id"],
             keep="last",
         )
-        .sort_values("timestamp")
+        .sort_values(
+            ["asset_id", "timestamp"]
+        )
+        .reset_index(drop=True)
     )
 
     prepared, feature_columns = _prepare_features(
@@ -334,21 +407,34 @@ def predict_failure(
     )
 
     prediction = int(
-        probability >= threshold
+        probability >= float(threshold)
     )
 
     return {
         "asset_id": asset_id,
+        "timestamp": str(
+            latest["timestamp"].iloc[0]
+        ),
         "failure_probability": round(
             probability,
+            6,
+        ),
+        "failure_probability_percent": round(
+            probability * 100,
             4,
         ),
         "prediction": prediction,
         "predicted_failure": prediction,
-        "threshold": threshold,
+        "threshold": float(threshold),
         "risk_level": (
-            "High"
+            "Maintenance Alert"
             if prediction == 1
             else "Normal"
+        ),
+        "model": (
+            model.named_steps["model"].__class__.__name__
+            if hasattr(model, "named_steps")
+            and "model" in model.named_steps
+            else "Saved Model"
         ),
     }

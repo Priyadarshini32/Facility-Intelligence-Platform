@@ -19,10 +19,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.data_loader import load_data
-from src.prediction_service import (
-    predict_failure,
-    load_model as load_failure_model,
-)
+# Predictive maintenance is intentionally called through the Flask
+# deployment API rather than running the model directly in Streamlit.
+
 from src.energy_service import forecast_energy
 from src.anomaly_service import (
     load_anomaly_results,
@@ -146,13 +145,6 @@ def load_project_data():
     return load_data(DATA_DIR)
 
 
-@st.cache_resource
-def load_pm_model():
-    return load_failure_model(
-        PM_DIR / "predictive_maintenance_model.joblib"
-    )
-
-
 @st.cache_data
 def load_pm_config():
     with open(
@@ -267,43 +259,150 @@ st.markdown(
 
 if page == "Overview":
 
-    st.subheader("Challenge Overview")
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    c1.metric(
-        "Telemetry Records",
-        f"{len(telemetry):,}",
+    st.markdown(
+        """
+        <div class="section-card">
+            <h2 style="margin-top:0;">
+                Nectar Intelligent Facilities Analytics
+            </h2>
+            <h4 style="margin-top:4px; color:#94a3b8;">
+                End-to-End IoT Analytics, Machine Learning, Forecasting,
+                Anomaly Detection & Connectivity
+            </h4>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    c2.metric(
-        "Assets",
-        f"{metadata['asset_id'].nunique():,}",
-    )
-
-    c3.metric(
-        "Buildings",
-        f"{metadata['building_id'].nunique():,}",
-    )
-
-    c4.metric(
-        "Sites",
-        f"{metadata['site_id'].nunique():,}",
-    )
-
-    st.divider()
+    st.subheader("Executive Summary")
 
     st.markdown(
         """
-        This dashboard connects the five challenge tasks:
+        This project develops an end-to-end analytics solution for
+        connected commercial-facility assets. The workflow uses IoT
+        telemetry, asset metadata, and asset connectivity information
+        to understand equipment behavior, predict near-term failures,
+        forecast building energy consumption, detect abnormal behavior,
+        and analyze dependency relationships.
 
-        **EDA → Predictive Maintenance → Energy Forecasting →
-        Anomaly Detection → Asset Connectivity**
-
-        The notebooks are responsible for training and saving
-        models. The dashboard loads those saved artifacts and
-        performs inference or displays their results.
         """
+    )
+
+    st.subheader("Project Summary")
+
+    overview_df = pd.DataFrame(
+        [
+            {
+                "Area": "Dataset",
+                "Key Outcome": (
+                    "259,200 telemetry readings | 30 assets | "
+                    "6 buildings | 3 sites | Jan–Mar 2026"
+                ),
+            },
+            {
+                "Area": "Task 1",
+                "Key Outcome": (
+                    "EDA, data-quality validation, temporal/asset behavior "
+                    "and failure/energy factor analysis"
+                ),
+            },
+            {
+                "Area": "Task 2",
+                "Key Outcome": (
+                    "24-hour failure prediction using a saved XGBoost pipeline"
+                ),
+            },
+            {
+                "Area": "Task 3",
+                "Key Outcome": (
+                    "Building-level energy forecasting using hourly "
+                    "recursive models"
+                ),
+            },
+            {
+                "Area": "Task 4",
+                "Key Outcome": (
+                    "Hybrid anomaly detection using five complementary signals"
+                ),
+            },
+            {
+                "Area": "Task 5",
+                "Key Outcome": (
+                    "Directed asset graph, failure-impact analysis and "
+                    "connectivity data-quality checks"
+                ),
+            },
+            {
+                "Area": "Application",
+                "Key Outcome": (
+                    "Streamlit dashboard + Flask REST API + GraphQL interface"
+                ),
+            },
+        ]
+    )
+
+    st.dataframe(
+        overview_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Area": st.column_config.TextColumn(
+                "Area",
+                width="small",
+            ),
+            "Key Outcome": st.column_config.TextColumn(
+                "Key Outcome",
+                width="large",
+            ),
+        },
+    )
+
+    st.subheader("Dataset & Domain")
+
+    st.markdown(
+        """
+        - **Telemetry records** contain timestamp, site/building/asset
+          identifiers, temperature, humidity, pressure, vibration,
+          power consumption, occupancy, operating mode and fault flag.
+
+        - **Asset metadata** provides asset type, manufacturer,
+          installation date, capacity and parent-asset relationships.
+
+        - **Connectivity data** provides source asset, target asset,
+          connection type and relationship strength.
+
+        - The application treats **telemetry as asset behavior,
+          metadata as asset context, and connectivity as dependency
+          information**.
+        """
+    )
+
+    st.subheader("Overall Architecture")
+
+    st.markdown(
+        """
+        <div class="section-card">
+            <div style="font-size:1.05rem; text-align:center; padding:8px;">
+                Raw data
+                <b>→</b>
+                Jupyter notebooks
+                <b>→</b>
+                saved models / results / graphs
+                <b>→</b>
+                service layer
+                <b>→</b>
+                Flask REST / GraphQL
+                <b>→</b>
+                Streamlit dashboard
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.info(
+        "The dashboard does not retrain models; it consumes the saved "
+        "artifacts produced by the notebooks."
     )
 
     st.subheader("Artifact Status")
@@ -350,16 +449,19 @@ elif page == "Task 1 - EDA":
 
     st.subheader("📊 Exploratory Data Analysis")
     st.caption(
-        "Key EDA outputs generated by the Task 1 notebook. "
-        "The dashboard displays the saved notebook artifacts."
+        "Curated evidence from the Task 1 notebook, selected to directly "
+        "cover the challenge requirements: distributions, data quality, "
+        "temporal behavior, site and asset-type differences, failure signals, "
+        "and energy drivers."
     )
 
-    figures_dir = OUTPUTS_DIR / "eda" / "figures"
-    tables_dir = OUTPUTS_DIR / "eda" / "tables"
+    figures_dir = OUTPUTS_DIR / "eda" / "dashboard_figures"
+    tables_dir = OUTPUTS_DIR / "eda" / "dashboard_tables"
 
-    # Quick dataset summary
+    # --------------------------------------------------------
+    # Dataset summary
+    # --------------------------------------------------------
     e1, e2, e3, e4 = st.columns(4)
-
     e1.metric("Telemetry Records", f"{len(telemetry):,}")
     e2.metric("Assets", f"{metadata['asset_id'].nunique():,}")
     e3.metric("Buildings", f"{metadata['building_id'].nunique():,}")
@@ -367,70 +469,170 @@ elif page == "Task 1 - EDA":
 
     st.divider()
 
-    if figures_dir.exists():
+    # --------------------------------------------------------
+    # Key findings
+    # --------------------------------------------------------
+    st.subheader("Key Findings & Evidence")
 
-        image_files = sorted(
-            list(figures_dir.glob("*.png"))
-            + list(figures_dir.glob("*.jpg"))
-            + list(figures_dir.glob("*.jpeg"))
+    finding_files = [
+        ("01_data_quality.png", "01_data_quality.csv",
+         "1. Data Quality",
+         "Missingness is limited and the telemetry stream has a reliable sampling structure."),
+        ("02_temporal_energy.png", "02_temporal_energy.csv",
+         "2. Temporal Pattern",
+         "Energy demand changes strongly by hour of day, supporting time-aware forecasting."),
+        ("03_site_behavior.png", "03_site_behavior.csv",
+         "3. Asset Behavior Across Sites",
+         "Site-level energy differences are measurable but should be interpreted with building and operating context."),
+        ("04_asset_type_performance.png", "04_asset_type_performance.csv",
+         "4. Performance Across Asset Types",
+         "Different equipment classes operate in different physical regimes, so health baselines should be asset-type specific."),
+        ("05_failure_signals.png", "05_failure_signals.csv",
+         "5. Equipment Failure Signals",
+         "Fault readings show higher temperature, vibration and power than normal readings."),
+        ("06_prefault_behavior.png", "06_prefault_behavior.csv",
+         "6. Pre-Fault Behavior",
+         "Vibration changes substantially within 24 hours before recorded faults."),
+        ("07_energy_drivers.png", "07_energy_drivers.csv",
+         "7. Energy Consumption Drivers",
+         "Occupancy and temperature show the strongest positive numeric associations with energy."),
+    ]
+
+    finding_text = {
+        "1. Data Quality": (
+            "**Key observation:** humidity 1.028%, temperature 0.984%, "
+            "vibration 0.788%, and pressure 0.772% are missing. "
+            "No duplicate telemetry rows or non-15-minute intervals were identified."
+        ),
+        "2. Temporal Pattern": (
+            "**Key observation:** average energy rises sharply during the "
+            "operating period and falls again after the operating window. "
+            "Time-of-day is therefore important for energy modeling."
+        ),
+        "3. Asset Behavior Across Sites": (
+            "**Key observation:** SITE_02 has the highest average energy "
+            "reading (29.712 kWh), while SITE_03 has the lowest (28.768 kWh)."
+        ),
+        "4. Performance Across Asset Types": (
+            "**Key observation:** Energy Meters average 62.692 kWh, Chillers "
+            "42.486 kWh, AHUs 16.892 kWh and Pumps 7.600 kWh. "
+            "Pumps also have the highest average vibration (0.249) and pressure (4.502)."
+        ),
+        "5. Equipment Failure Signals": (
+            "**Key observation:** fault readings have higher mean temperature "
+            "(24.084 vs 22.513), vibration (0.540 vs 0.135), and power "
+            "(31.734 vs 29.310). Vibration has the strongest simple association "
+            "with the fault flag (≈0.162)."
+        ),
+        "6. Pre-Fault Behavior": (
+            "**Key observation:** 5,112 readings occur within 24 hours before "
+            "a recorded fault. Mean vibration increases by about 75.65% in this "
+            "pre-fault comparison, making recent vibration behavior an important "
+            "candidate predictive signal."
+        ),
+        "7. Energy Consumption Drivers": (
+            "**Key observation:** the notebook reports positive associations "
+            "between occupancy and energy (≈0.470) and temperature and energy "
+            "(≈0.317). Energy analysis should also account for operating mode, "
+            "asset type, building and time."
+        ),
+    }
+
+    for fig_name, table_name, title, description in finding_files:
+        st.markdown(f"### {title}")
+        st.caption(description)
+
+        left, right = st.columns([1.45, 1])
+
+        with left:
+            fig_path = figures_dir / fig_name
+            if fig_path.exists():
+                st.image(
+                    str(fig_path),
+                    use_container_width=True,
+                )
+            else:
+                st.warning(
+                    f"{fig_name} not found. Run the updated Task 1 notebook."
+                )
+
+        with right:
+            st.markdown(finding_text[title])
+
+            table_path = tables_dir / table_name
+            if table_path.exists():
+                try:
+                    table_df = pd.read_csv(table_path)
+                    st.dataframe(
+                        table_df,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                except Exception as exc:
+                    st.error(f"Could not read {table_name}: {exc}")
+            else:
+                st.info(
+                    f"{table_name} not found. Run the updated Task 1 notebook."
+                )
+
+        st.divider()
+
+    # --------------------------------------------------------
+    # Compact statistical summary
+    # --------------------------------------------------------
+    st.subheader("EDA Summary")
+
+    summary_path = tables_dir / "00_eda_findings.csv"
+    if summary_path.exists():
+        summary_df = pd.read_csv(summary_path)
+        st.dataframe(
+            summary_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "area": "Area",
+                "key_finding": "Key Finding",
+                "business_insight": "Business Insight",
+            },
+        )
+    else:
+        st.info(
+            "Run the updated Task 1 notebook to create the dashboard summary."
         )
 
-        if image_files:
-            st.subheader("EDA Visualizations")
-
-            # Show figures in a compact 2-column gallery
-            for start_idx in range(0, len(image_files), 2):
-                cols = st.columns(2)
-
-                for col, image in zip(
-                    cols,
-                    image_files[start_idx:start_idx + 2]
-                ):
-                    with col:
-                        st.image(
-                            str(image),
-                            caption=image.stem.replace(
-                                "_", " "
-                            ).title(),
-                            use_container_width=True,
-                        )
-        else:
-            st.info("No EDA figures found.")
-
-    if tables_dir.exists():
-
-        table_files = sorted(
-            list(tables_dir.glob("*.xlsx"))
-            + list(tables_dir.glob("*.csv"))
+    # --------------------------------------------------------
+    # Optional detailed exploratory plots
+    # --------------------------------------------------------
+    with st.expander("View Supporting Distribution / Exploratory Plots"):
+        st.caption(
+            "These are the broader exploratory plots generated by the notebook. "
+            "The sections above contain the curated evidence used to explain the challenge requirements."
         )
 
-        if table_files:
-            st.subheader("EDA Summary Tables")
+        if (OUTPUTS_DIR / "eda" / "figures").exists():
+            image_files = sorted(
+                list((OUTPUTS_DIR / "eda" / "figures").glob("*.png"))
+                + list((OUTPUTS_DIR / "eda" / "figures").glob("*.jpg"))
+                + list((OUTPUTS_DIR / "eda" / "figures").glob("*.jpeg"))
+            )
 
-            for table in table_files:
-
-                with st.expander(
-                    table.stem.replace(
-                        "_", " "
-                    ).title()
-                ):
-
-                    try:
-                        if table.suffix.lower() == ".xlsx":
-                            table_df = pd.read_excel(table)
-                        else:
-                            table_df = pd.read_csv(table)
-
-                        st.dataframe(
-                            table_df,
-                            use_container_width=True,
-                            hide_index=True,
-                        )
-
-                    except Exception as exc:
-                        st.error(
-                            f"Could not read {table.name}: {exc}"
-                        )
+            if image_files:
+                for start_idx in range(0, len(image_files), 2):
+                    cols = st.columns(2)
+                    for col, image in zip(
+                        cols,
+                        image_files[start_idx:start_idx + 2],
+                    ):
+                        with col:
+                            st.image(
+                                str(image),
+                                caption=image.stem.replace(
+                                    "_", " "
+                                ).title(),
+                                use_container_width=True,
+                            )
+            else:
+                st.info("No supporting EDA figures found.")
 
 # ============================================================
 # TASK 2
@@ -451,99 +653,390 @@ elif page == "Task 2 - Predictive Maintenance":
         artifact_message(model_path)
         st.stop()
 
-    model = load_pm_model()
     config = load_pm_config()
 
-    c1, c2 = st.columns(2)
+    # --------------------------------------------------------
+    # Deployment status
+    # --------------------------------------------------------
+
+    backend_url = st.text_input(
+        "Prediction API Endpoint",
+        value="http://127.0.0.1:5000/predict_failure",
+        key="pm_api_url",
+    )
+
+    # Construct the status endpoint from the selected prediction URL.
+    if backend_url.endswith("/predict_failure"):
+        status_url = (
+            backend_url[
+                : -len("/predict_failure")
+            ]
+            + "/predict_failure/status"
+        )
+    elif backend_url.endswith("/api/predict_failure"):
+        status_url = (
+            backend_url[
+                : -len("/api/predict_failure")
+            ]
+            + "/predict_failure/status"
+        )
+    else:
+        status_url = (
+            backend_url.rstrip("/")
+            + "/predict_failure/status"
+        )
+
+    try:
+        status_response = requests.get(
+            status_url,
+            timeout=5,
+        )
+
+        if status_response.ok:
+            status = status_response.json()
+
+            if status.get("status") == "ready":
+                st.success(
+                    "Prediction API is running and the saved model is loaded."
+                )
+            else:
+                st.warning(
+                    "Prediction API is reachable, but the model is not ready."
+                )
+        else:
+            st.warning(
+                "Prediction API is not ready. Start Flask with: "
+                "`python backend/app.py`"
+            )
+
+    except requests.exceptions.RequestException:
+        st.warning(
+            "Prediction API is not running. Start Flask with:\n\n"
+            "`python backend/app.py`"
+        )
+
+    c1, c2, c3 = st.columns(3)
 
     c1.metric(
         "Model",
-        config["model_name"],
+        config.get(
+            "model_name",
+            "XGBoost",
+        ),
     )
 
     c2.metric(
         "Alert Threshold",
-        f"{config['threshold']:.2f}",
+        f"{float(config['threshold']):.2f}",
+    )
+
+    c3.metric(
+        "Prediction Horizon",
+        "24 Hours",
     )
 
     st.caption(
-        "Prediction uses the saved preprocessing + model "
-        "pipeline from the Task 2 notebook."
+        "This page sends telemetry to the Flask prediction API. "
+        "The API loads the saved Task 2 pipeline and returns the "
+        "24-hour failure probability."
     )
 
+    # --------------------------------------------------------
+    # Select asset
+    # --------------------------------------------------------
+
     asset_ids = sorted(
-        metadata["asset_id"].unique()
+        metadata["asset_id"]
+        .astype(str)
+        .unique()
     )
 
     selected_asset = st.selectbox(
         "Select Asset",
         asset_ids,
+        key="pm_asset",
     )
 
     asset_history = telemetry[
-        telemetry["asset_id"] == selected_asset
-    ].sort_values("timestamp")
+        telemetry["asset_id"].astype(str)
+        == selected_asset
+    ].sort_values("timestamp").copy()
 
     if asset_history.empty:
-        st.warning("No telemetry found for this asset.")
+        st.warning(
+            "No telemetry found for this asset."
+        )
+        st.stop()
+
+    # --------------------------------------------------------
+    # Choose which telemetry point to score
+    # --------------------------------------------------------
+
+    prediction_mode = st.radio(
+        "Prediction Input",
+        [
+            "Latest Reading",
+            "Highest-Risk Test Observation",
+            "Select Historical Reading",
+        ],
+        horizontal=True,
+    )
+
+    selected_row = None
+
+    if prediction_mode == "Latest Reading":
+
+        selected_row = asset_history.iloc[-1]
+
+    elif prediction_mode == "Highest-Risk Test Observation":
+
+        test_predictions_path = (
+            PM_DIR / "test_predictions.csv"
+        )
+
+        if not test_predictions_path.exists():
+
+            st.info(
+                "test_predictions.csv is not available. "
+                "Run Task 2 notebook first."
+            )
+
+            selected_row = asset_history.iloc[-1]
+
+        else:
+
+            test_predictions = pd.read_csv(
+                test_predictions_path
+            )
+
+            test_predictions["asset_id"] = (
+                test_predictions["asset_id"]
+                .astype(str)
+            )
+
+            asset_test = test_predictions[
+                test_predictions["asset_id"]
+                == selected_asset
+            ].copy()
+
+            if asset_test.empty:
+
+                st.info(
+                    "This asset has no test-period prediction row. "
+                    "Using its latest reading."
+                )
+
+                selected_row = asset_history.iloc[-1]
+
+            else:
+
+                best_row = asset_test.sort_values(
+                    "failure_probability",
+                    ascending=False,
+                ).iloc[0]
+
+                timestamp = pd.to_datetime(
+                    best_row["timestamp"]
+                )
+
+                matching = asset_history[
+                    pd.to_datetime(
+                        asset_history["timestamp"]
+                    ) == timestamp
+                ]
+
+                if matching.empty:
+
+                    st.info(
+                        "Saved test timestamp was not found "
+                        "in telemetry. Using latest reading."
+                    )
+
+                    selected_row = asset_history.iloc[-1]
+
+                else:
+
+                    selected_row = matching.iloc[-1]
+
+                    st.info(
+                        "Using the highest-risk saved test-period "
+                        "observation for this asset."
+                    )
+
     else:
 
-        latest = asset_history.iloc[-1].copy()
+        timestamps = pd.to_datetime(
+            asset_history["timestamp"]
+        ).tolist()
 
-        current_telemetry = latest.to_dict()
+        selected_timestamp = st.select_slider(
+            "Historical Timestamp",
+            options=timestamps,
+            value=timestamps[-1],
+            format_func=lambda x: x.strftime(
+                "%Y-%m-%d %H:%M"
+            ),
+        )
+
+        selected_rows = asset_history[
+            pd.to_datetime(
+                asset_history["timestamp"]
+            ) == selected_timestamp
+        ]
+
+        selected_row = selected_rows.iloc[-1]
+
+    # --------------------------------------------------------
+    # Call the deployed Flask API
+    # --------------------------------------------------------
+
+    current_telemetry = selected_row.to_dict()
+
+    # Convert pandas timestamps/numpy values into JSON-safe values.
+    current_telemetry["timestamp"] = str(
+        pd.to_datetime(
+            current_telemetry["timestamp"]
+        )
+    )
+
+    for key, value in list(
+        current_telemetry.items()
+    ):
+        if pd.isna(value):
+            current_telemetry[key] = None
+        elif hasattr(value, "item"):
+            current_telemetry[key] = value.item()
+
+    payload = {
+        "asset_id": selected_asset,
+        "current_telemetry": current_telemetry,
+    }
+
+    if st.button(
+        "Run Prediction API",
+        type="primary",
+        use_container_width=True,
+    ):
 
         try:
-            result = predict_failure(
-                asset_id=selected_asset,
-                current_telemetry=current_telemetry,
-                telemetry_history=asset_history.iloc[:-1],
-                metadata=metadata,
-                model=model,
-                threshold=float(config["threshold"]),
+
+            response = requests.post(
+                backend_url,
+                json=payload,
+                timeout=30,
             )
 
-            p1, p2, p3 = st.columns(3)
+            response.raise_for_status()
 
-            p1.metric(
-                "Failure Probability",
-                f"{result['failure_probability']:.2%}",
+            result = response.json()
+
+            if "error" in result:
+
+                st.error(
+                    result["error"]
+                )
+
+                if result.get("details"):
+                    st.code(
+                        result["details"]
+                    )
+
+            else:
+
+                probability = float(
+                    result["failure_probability"]
+                )
+
+                threshold = float(
+                    result["threshold"]
+                )
+
+                p1, p2, p3, p4 = st.columns(4)
+
+                p1.metric(
+                    "Failure Probability",
+                    f"{probability:.2%}",
+                )
+
+                p2.metric(
+                    "Alert Threshold",
+                    f"{threshold:.0%}",
+                )
+
+                p3.metric(
+                    "Prediction",
+                    (
+                        "Maintenance Alert"
+                        if result["predicted_failure"]
+                        else "No Alert"
+                    ),
+                )
+
+                p4.metric(
+                    "Risk Level",
+                    result["risk_level"],
+                )
+
+                st.success(
+                    "Prediction generated by the deployed Flask API."
+                )
+
+                st.dataframe(
+                    pd.DataFrame([result]),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+                with st.expander(
+                    "API Request Payload"
+                ):
+                    st.json(payload)
+
+        except requests.exceptions.ConnectionError:
+
+            st.error(
+                "Could not connect to the Flask prediction API."
             )
 
-            p2.metric(
-                "Prediction",
-                (
-                    "Maintenance Alert"
-                    if result["predicted_failure"]
-                    else "No Alert"
-                ),
+            st.code(
+                "python backend/app.py",
+                language="powershell",
             )
 
-            p3.metric(
-                "Latest Reading",
-                str(latest["timestamp"]),
+        except requests.exceptions.HTTPError as exc:
+
+            st.error(
+                f"Prediction API returned an HTTP error: {exc}"
             )
 
-            st.dataframe(
-                pd.DataFrame([result]),
-                use_container_width=True,
-                hide_index=True,
-            )
+            try:
+                st.json(response.json())
+            except Exception:
+                pass
 
         except Exception as exc:
+
             st.error(
                 f"Prediction could not be generated: {exc}"
             )
+
+    # --------------------------------------------------------
+    # Saved test-period summary
+    # --------------------------------------------------------
 
     summary_path = (
         PM_DIR / "asset_alert_summary.csv"
     )
 
     if summary_path.exists():
+
         st.subheader(
             "Test-Period Asset Risk Summary"
         )
 
-        summary = pd.read_csv(summary_path)
+        summary = pd.read_csv(
+            summary_path
+        )
 
         st.dataframe(
             summary.head(20),

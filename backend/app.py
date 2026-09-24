@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from flask import Flask, jsonify, request
+import pandas as pd
 from flask_cors import CORS
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -98,6 +99,23 @@ CORS(app)
 
 telemetry, metadata, raw_connectivity = load_data(
     DATA_DIR
+)
+
+# Normalize identifiers and timestamps once at API startup.
+# This prevents mixed string/Timestamp comparisons during inference.
+telemetry["asset_id"] = (
+    telemetry["asset_id"].astype(str).str.strip()
+)
+telemetry["timestamp"] = pd.to_datetime(
+    telemetry["timestamp"],
+    errors="coerce",
+)
+telemetry = telemetry.dropna(
+    subset=["timestamp"]
+).copy()
+
+metadata["asset_id"] = (
+    metadata["asset_id"].astype(str).str.strip()
 )
 
 
@@ -282,6 +300,46 @@ def assets():
 # Task 2 — Predictive Maintenance
 # ------------------------------------------------------------------
 
+@app.get("/predict_failure/status")
+def predict_failure_status():
+    """Return the readiness of the predictive-maintenance service."""
+
+    model_path = (
+        PM_DIR
+        / "predictive_maintenance_model.joblib"
+    )
+
+    config_path = (
+        PM_DIR
+        / "model_config.json"
+    )
+
+    model_available = model_path.exists()
+    config_available = config_path.exists()
+
+    ready = (
+        model_available
+        and config_available
+    )
+
+    return jsonify(
+        {
+            "service": "predictive-maintenance",
+            "status": (
+                "ready"
+                if ready
+                else "not_ready"
+            ),
+            "model": "XGBoost",
+            "prediction_horizon": "24 hours",
+            "threshold": 0.76,
+            "model_artifact_available": model_available,
+            "config_available": config_available,
+        }
+    )
+
+
+@app.post("/predict_failure")
 @app.post("/api/predict_failure")
 def predict_failure_api():
     model_path = (
@@ -309,6 +367,9 @@ def predict_failure_api():
     current_telemetry = payload.get(
         "current_telemetry"
     )
+
+    if asset_id is not None:
+        asset_id = str(asset_id).strip()
 
     if not asset_id:
         return jsonify(
@@ -367,6 +428,10 @@ def predict_failure_api():
         return jsonify(result)
 
     except Exception as exc:
+        app.logger.exception(
+            "Predictive-maintenance inference failed"
+        )
+
         return jsonify(
             {
                 "error": (
