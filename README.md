@@ -1,6 +1,6 @@
 # Nectar Intelligent Facilities Analytics
 
-## 3-Line Description
+## Description
 
 An end-to-end Data Science solution for intelligent facility management using IoT telemetry, asset metadata, and asset connectivity data.  
 The project covers EDA, 24-hour predictive maintenance, building energy forecasting, hybrid anomaly detection, and multi-asset connectivity/failure-impact analysis.  
