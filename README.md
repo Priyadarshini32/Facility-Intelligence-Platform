@@ -50,7 +50,7 @@ The dashboard does not retrain the models. The notebooks perform analysis/traini
 
 # 2. Main Tasks
 
-## Task 1 — Exploratory Data Analysis
+## Task 1 - Exploratory Data Analysis
 
 Analyzes:
 
@@ -78,7 +78,7 @@ The Streamlit dashboard reads these saved notebook artifacts.
 
 ---
 
-## Task 2 — Predictive Maintenance
+## Task 2 - Predictive Maintenance
 
 Objective:
 
@@ -138,7 +138,7 @@ The dashboard loads the saved pipeline rather than retraining it.
 
 ---
 
-## Task 3 — Energy Consumption Forecasting
+## Task 3 - Energy Consumption Forecasting
 
 Objective:
 
@@ -184,7 +184,7 @@ The dashboard loads the building-specific saved XGBoost model and generates a re
 
 ---
 
-## Task 4 — Anomaly Detection
+## Task 4 - Anomaly Detection
 
 The anomaly-detection workflow combines multiple signals rather than relying on one detector.
 
@@ -217,7 +217,7 @@ The dashboard loads the precomputed hybrid anomaly results rather than retrainin
 
 ---
 
-## Task 5 — Multi-Asset Connectivity Analysis
+## Task 5 - Multi-Asset Connectivity Analysis
 
 The connectivity analysis uses:
 
