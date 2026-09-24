@@ -1,0 +1,8 @@
+Metric,Value
+total_assets,30
+total_connections,24
+isolated_assets,0
+assets_with_downstream_dependencies,18
+max_downstream_count,3
+duplicate_connections,0
+invalid_parent_mappings,0

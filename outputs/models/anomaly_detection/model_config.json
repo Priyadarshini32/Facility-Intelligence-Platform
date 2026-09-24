@@ -1,0 +1,12 @@
+{
+  "statistical_method": "asset-level IQR",
+  "isolation_forest_contamination": 0.01,
+  "autoencoder_threshold_quantile": 0.99,
+  "change_signal_threshold": 3,
+  "severity_rule": {
+    "Critical": "score >= 4",
+    "Anomaly": "score == 3",
+    "Watch": "score == 2",
+    "Normal": "score < 2"
+  }
+}

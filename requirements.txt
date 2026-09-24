@@ -1,0 +1,43 @@
+# Core data handling
+numpy
+pandas
+
+# Visualization
+matplotlib
+seaborn
+
+# Machine Learning
+scikit-learn
+xgboost
+catboost
+
+# Time Series Forecasting
+prophet
+statsmodels
+
+# Deep Learning - LSTM
+tensorflow
+
+# Jupyter Notebook
+jupyter
+notebook
+ipykernel
+
+# Connectivity analysis
+networkx
+
+# Model saving/loading
+joblib
+
+# Backend API
+flask
+flask-cors
+
+# GraphQL API
+graphql-core
+
+# Dashboard
+streamlit
+
+# Excel files
+openpyxl

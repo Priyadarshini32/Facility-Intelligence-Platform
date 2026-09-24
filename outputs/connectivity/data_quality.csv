@@ -1,0 +1,8 @@
+Metric,Value
+duplicate_connections,0
+self_connections,0
+invalid_source_assets,0
+invalid_target_assets,0
+invalid_parent_mappings,0
+self_parent_mappings,0
+graph_isolated_assets,0

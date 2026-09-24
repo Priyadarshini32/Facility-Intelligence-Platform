@@ -1,0 +1,28 @@
+# =========================
+# Python Virtual Environment
+# =========================
+myvenv/
+.myvenv/
+
+
+# =========================
+# Python Cache
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# =========================
+# Jupyter Notebook Checkpoints
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# CatBoost
+# =========================
+catboost_info/
+
+# =========================
+# Jupyter / IPython
+# =========================
+*.ipynb_checkpoints

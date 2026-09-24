@@ -1,0 +1,13 @@
+,missing_count,missing_percentage
+humidity,2665,1.0281635802469136
+temperature,2551,0.9841820987654321
+vibration,2043,0.7881944444444445
+pressure,2000,0.7716049382716049
+asset_id,0,0.0
+building_id,0,0.0
+site_id,0,0.0
+timestamp,0,0.0
+power_consumption,0,0.0
+occupancy_count,0,0.0
+operating_mode,0,0.0
+fault_flag,0,0.0

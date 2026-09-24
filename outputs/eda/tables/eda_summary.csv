@@ -1,0 +1,10 @@
+Metric,Value
+Telemetry readings,259200.0
+Sites,3.0
+Buildings,6.0
+Assets,30.0
+Fault readings,270.0
+Fault rate (%),0.10416666666666667
+Missing telemetry cells,9259.0
+Duplicate telemetry rows,0.0
+Non-15-minute intervals,0.0

@@ -1,0 +1,5 @@
+asset_type,anomaly_count,critical_count,average_anomaly_score
+Chiller,618,33,0.08055555555555556
+Pump,615,55,0.0558641975308642
+Energy Meter,444,22,0.05528549382716049
+AHU,369,7,0.03179976851851852

@@ -1,0 +1,9 @@
+,,Normal,Within 24h of Fault
+temperature,mean,22.248051577088063,22.928149121074462
+temperature,median,22.25,22.941
+pressure,mean,1.701238402581686,1.790819523715804
+pressure,median,1.072,1.104
+vibration,mean,0.1274198800342759,0.22381104536489152
+vibration,median,0.095,0.181
+power_consumption,mean,30.2031034,28.277270931142414
+power_consumption,median,16.0675,14.816
