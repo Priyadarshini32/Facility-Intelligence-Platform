@@ -1,4 +1,4 @@
-# Nectar Intelligent Facilities Analytics
+# Intelligent Facilities Analytics
 
 ## Description
 
@@ -9,8 +9,6 @@ A Streamlit dashboard and Flask/GraphQL backend expose the notebook-generated in
 ---
 
 # 1. Project Overview
-
-This project was developed for the Nectar Data Scientist Challenge.
 
 The solution analyzes connected building assets such as:
 
